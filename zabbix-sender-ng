@@ -1,0 +1,50 @@
+import json
+import struct
+import logging
+import time
+import argparse
+import socket
+
+def send_item(host, key, value, server, port):
+    timestamp = int(time.time())
+    data = {'request': 'agent data',
+            'clock': timestamp,
+            'data': [{'host': host,
+                      'key': key,
+                      'value': value,
+                      'clock': timestamp
+            }]
+    }
+    response = send_req(data, server, port)
+    if response[u'response'] != u'success':
+        raise RuntimeError(response)
+
+def send_req(data, server, port):
+    header = 'ZBXD\x01'
+    request = json.dumps(data)
+    data_len = struct.pack('<Q', len(request))
+    msg = '{header}{data_len}{data}'.format(header=header, data_len=data_len, data=request)
+    logging.debug('sending request: {0}'.format(request))
+    response_data = do_request(msg, server, port).read()
+    response = json.loads(response_data)
+    logging.debug('received response: {0}'.format(response))
+    return response
+
+def do_request(data, server, port):
+    sock = socket.socket()
+    sock.connect((server, port))
+    sock.send(data)
+    return sock.makefile()
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser('zabbix-sender-ng')
+    parser.add_argument('--server', dest='server', default='zabbix.yandex.net', help='zabbix server')
+    parser.add_argument('--port', type=int, dest='port', default=10051, help='zabbix port')
+    parser.add_argument('--host', dest='host', default=socket.getfqdn(), help='checked host')
+    parser.add_argument('--key', dest='key', required=True, help='item key')
+    parser.add_argument('--value', dest='value', required=True, help='item value')
+    parser.add_argument('--verbose', dest='verbose', action='store_true', help='be verbose')
+    options = parser.parse_args()
+    if options.verbose:
+        logging.basicConfig(level=logging.DEBUG)
+    send_item(options.host, options.key, options.value, options.server, options.port)
