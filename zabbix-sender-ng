@@ -5,37 +5,40 @@ import logging
 import time
 import argparse
 import socket
+import re
 
-def send_item(host, key, value, server, port):
-    timestamp = int(time.time())
-    data = {'request': 'agent data',
-            'clock': timestamp,
-            'data': [{'host': host,
-                      'key': key,
-                      'value': value,
-                      'clock': timestamp
-            }]
-    }
-    response = send_req(data, server, port)
-    if response[u'response'] != u'success':
-        raise RuntimeError(response)
-
-def send_req(data, server, port):
-    header = 'ZBXD\x01'
-    request = json.dumps(data)
-    data_len = struct.pack('<Q', len(request))
-    msg = '{header}{data_len}{data}'.format(header=header, data_len=data_len, data=request)
-    logging.debug('sending request: {0}'.format(request))
-    response_data = do_request(msg, server, port).read()
-    response = json.loads(response_data)
-    logging.debug('received response: {0}'.format(response))
-    return response
-
-def do_request(data, server, port):
-    sock = socket.socket()
-    sock.connect((server, port))
-    sock.send(data)
-    return sock.makefile()
+class ZabbixSenderNg:
+    def send_item(self, host, key, value, server, port):
+        timestamp = int(time.time())
+        data = {'request': 'agent data',
+                'clock': timestamp,
+                'data': [{'host': host,
+                          'key': key,
+                          'value': value,
+                          'clock': timestamp
+                }]
+        }
+        response = self.send_req(data, server, port)
+        if response[u'response'] != u'success':
+            raise RuntimeError(response)
+    
+    def send_req(self, data, server, port):
+        header = 'ZBXD\x01'
+        request = json.dumps(data)
+        data_len = struct.pack('<Q', len(request))
+        msg = '{header}{data_len}{data}'.format(header=header, data_len=data_len, data=request)
+        logging.debug('sending request: {0}'.format(request))
+        response_data = self.do_request(msg, server, port).read()
+        response_data = re.sub( "^.+\{",'{', response_data)
+        response = json.loads(response_data)
+        logging.debug('received response: {0}'.format(response))
+        return response
+    
+    def do_request(self, data, server, port):
+        sock = socket.socket()
+        sock.connect((server, port))
+        sock.send(data)
+        return sock.makefile()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('zabbix-sender-ng')
@@ -48,4 +51,5 @@ if __name__ == '__main__':
     options = parser.parse_args()
     if options.verbose:
         logging.basicConfig(level=logging.DEBUG)
-    send_item(options.host, options.key, options.value, options.server, options.port)
+    zs = ZabbixSenderNg()
+    zs.send_item(options.host, options.key, options.value, options.server, options.port)
