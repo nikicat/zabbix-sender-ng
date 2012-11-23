@@ -29,6 +29,7 @@ class ZabbixSenderNg:
         msg = '{header}{data_len}{data}'.format(header=header, data_len=data_len, data=request)
         logging.debug('sending request: {0}'.format(request))
         response_data = self.do_request(msg, server, port).read()
+	#dropping the protocol "garbage". Can't say how it was working otherwise before.
         response_data = re.sub( "^.+\{",'{', response_data)
         response = json.loads(response_data)
         logging.debug('received response: {0}'.format(response))
